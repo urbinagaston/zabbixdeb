@@ -1,0 +1,148 @@
+Instalación zabbix
+
+1 – Instalar Apache, MySQL (MariaDB) y PHP
+
+apt-get update && apt-get upgrade -y &&
+apt-get install build-essential gcc wget curl libsnmp-dev libcurl4-openssl-dev libxml2-dev libsnmp-dev libevent-dev libpcre3-dev libcurl3-dev make -y &&
+apt-get install mariadb-server mariadb-client libmariadbd18 libmariadbclient-dev-compat -y &&
+apt-get install apache2 php7.0 php-pear php7.0-mysql php7.0-mbstring php7.0-bcmath php7.0-gd php7.0-cli php7.0-xmlrpc php7.0-ldap -y
+
+
+
+Actualizar la zona horaria en el archivo de configuración php /etc/php/7.0/apache2/php.ini . 
+
+[date]
+ ;  http://php.net/date.timezone
+ date.timezone = 'America / caracas' ---America/Argentina/Mendoza
+
+
+
+2 – Habilitar el repositorio en apt de zabbix
+
+Antes de instalar Zabbix, debemos configurar el repositorio de paquetes de Zabbix en Debian de la siguiente forma:
+
+
+wget http://repo.zabbix.com/zabbix/4.0/debian/pool/main/z/zabbix-release/zabbix-release_4.0-2+stretch_all.deb
+dpkg -i zabbix-release_4.0-2+stretch_all.deb
+
+
+
+
+
+3 – Instalar el servidor Zabbix
+
+
+Después de agregar el repositorio de Zabbix apt , debemos instalar el servidor Zabbix.
+En mi caso voy a utilizar como DB MariaDB (Mysqldb).
+Aquí el paquete zabbix-server-mysql incluye el servidor Zabbix con soporte MySQL.
+El paquete zabbix-frontend-php proporciona una interfaz web escrita en PHP para la administración del servidor Zabbix
+y zabbix-agent para monitoriar el propio servidor.
+
+
+sudo apt-get update -y &&
+sudo apt-get install zabbix-server-mysql zabbix-frontend-php zabbix-agent -y
+
+
+
+4 – Crear esquema de base de datos
+
+Una vez instalado zabbix debemos crear un esquema de base de datos para el servidor.
+Usando privilegios administrativos iniciamos mysql y con  las siguientes consultas crearemos una base de datos MySQL
+y un usuario para el servidor Zabbix.
+
+
+mysql -u root -p
+ 
+MariaDB> create database zabbix character set utf8 collate utf8_bin;
+MariaDB> grant all privileges on zabbix.* to 'zabbix'@'localhost' identified by 'xibbaz';
+MariaDB> flush privileges;
+MariaDB> exit
+
+
+Ahora cargamos el esquema de la base de datos Zabbix en la base de datos creada anteriormente.
+
+
+zcat /usr/share/doc/zabbix-server-mysql/create.sql.gz |  mysql zabbix -uzabbix -p 
+Luego ingresar la contraseña elegida en el paso anterior
+
+
+
+5 – Editar archivo de configuración de Zabbix
+
+Editamos el archivo de configuración del servidor Zabbix /etc/zabbix/zabbix_server.conf en su editor de texto favorito
+y actualice las siguientes configuraciones de la base de datos
+Esto será utilizado por el servidor Zabbix para conectarse a la base de datos.
+
+
+DBHost = localhost
+DBName = zabbix
+DBUser = zabbix
+DBPassword = contraseña
+
+
+
+
+
+6 – Reiniciamos Apache y Zabbix
+
+Zabbix crea su propio archivo de configuración de apache. 
+/etc/zabbix/apache.conf y hacer un enlace al directorio de configuración de Apache. 
+Vamos a usar el siguiente comando para reiniciar el servicio de Apache.
+
+/etc/init.d/apache2 restart
+/etc/init.d/zabbix-server restart
+
+
+
+7 – Configuramos Zabbix
+
+Configuración de Zabbix
+Modificamos el archivo de zabbix_server.conf
+
+find / -name zabbix_server.conf
+
+nano etc/zabbix/zabbix_server.conf
+
+ListenPort=10051
+LogFile=/var/log/zabbix_server.log
+DBHost=localhost 
+DBName=zabbixdb ## nombre de la base de datos creado para Zabbix
+DBUser =zabbix ## nombre del usuario para zabbix 
+DBPassword=contraseña ## contraseña de Zabbix en la base de datos.
+DBPort=3306
+
+
+
+8 – Completar  la instalación de Zabbix vía Web
+
+Debemos modificar los permisos necesarios para que Zabbix pueda guardar dicha configuración.
+
+# chown -R www-data /var/www/
+
+Desde un navegador web colocamos http://ipservidor/zabbix/
+
+En la siguiente ventana chequeamos los pre-requisitos
+
+
+Una vez que le damos Finish nos aparecerá una pantalla para loguearnos solicitando el usuario
+y contraseña (por defecto Admin | zabbix, es case sensitive así que la A tiene que ser mayúscula)
+
+
+
+
+
+A continuación tendremos que ir a la carpeta de nuestro servidor web donde tenemos instalado zabbix
+para modificar el archivo /include/locales.inc.php
+
+
+dpkg-reconfigure locales
+nano include/locales.inc.php
+
+Buscamos esta línea:
+
+‘es_ES’ => [‘name’ => _(‘Spanish (es_ES)’), ‘display’ => false],
+Cambiamos false por true:
+
+Guardamos los cambios y reiniciamos apache.
+
+service apache2 restart
